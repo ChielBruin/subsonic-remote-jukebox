@@ -1,6 +1,37 @@
 import vlc
 
-class Jukebox(object):
+class JukeboxStatus (object):
+    def __init__(self, playing, time, index, gain):
+        self.playing = playing
+        self.time = time
+        self.index = index
+        self.gain = gain
+
+    def to_json(self):
+        format = b'''{
+            "subsonic-response" : {
+                "status" : "ok",
+                "version" : "1.16.1",
+                "jukeboxStatus" : {
+                    "currentIndex" : %d,
+                    "playing" : %s,
+                    "gain" : %1.2f, 
+                    "position":%d
+                }
+            }
+        }'''
+        playing = b'true' if self.playing else b'false'
+        return format % (self.index, playing, self.gain, self.time)
+    
+    def to_xml(self):
+        format_str = b'''<subsonic-response status="ok" version="1.16.1">
+            <jukeboxStatus currentIndex="%d" playing="%s" gain="%1.2f" position="%d"/> 
+        </subsonic-response>'''
+        playing = b'true' if self.playing else b'false'
+        return format_str % (self.index, playing, self.gain, self.time)
+
+    
+class Jukebox (object):
     def __init__(self, target):
         self.target = target
         self.instance = vlc.Instance()

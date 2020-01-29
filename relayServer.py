@@ -20,15 +20,14 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         self._handle_request()
     
-    def send_jukebox_status(self):
-        response_format = b'<subsonic-response status="ok" version="1.7.0"> <jukeboxStatus currentIndex="%d" playing="%s" gain="%1.2f" position="%d"/> </subsonic-response>'
-        response = response_format % (
-                self.jukebox.get_index(), 
-                b'true' if self.jukebox.is_playing() else b'false', 
-                self.jukebox.get_volume(), 
-                self.jukebox.get_position()
-        )
+    def send_jukebox_status(self, type):
+        status = self.jukebox.get_status()
         
+        if type is None or type == 'xml':
+            response = status.to_xml()
+        else:
+            response = status.to_json()
+
         self.send_response(200)
         self.send_header('content-type', 'text/xml')
         self.end_headers()
@@ -130,7 +129,16 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
             else:
                 raise Exception('Unknown action')
         except:
+            print(self.path)
             print(args)
             # TODO: Send response here
             traceback.print_exc()
-            pass
+        
+            response = b'<subsonic-response status="failed" version="1.16.1"> <error code="10" message="Required parameter is missing."/> </subsonic-response>'
+        
+            self.send_response(200)
+            self.send_header('content-type', 'text/xml')
+            self.end_headers()
+        
+            self.wfile.write(response)
+            

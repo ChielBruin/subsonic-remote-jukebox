@@ -41,13 +41,21 @@ class Jukebox (object):
         self.player.set_media_player(self.instance.media_player_new())
         self.player.set_media_list(self.medialist)
 
-        self.playlist = []
+        self.mrl_map = {}
+
+    def get_status(self):
+        return JukeboxStatus(
+                    self.is_playing(), 
+                    self.get_position(), 
+                    self.get_index(), 
+                    self.get_volume()
+        )
 
     def set(self, id, credentials):
-        (media, ids) = self._build_media(id, credentials)
+        self.mrl_map = {}
+        media = self._build_media(id, credentials)
         
         # Create new list
-        self.playlist = ids
         self.medialist = vlc.MediaList()
         self.player.stop()
         self.player.set_media_list(self.medialist)
@@ -58,22 +66,27 @@ class Jukebox (object):
         self.medialist.unlock()
 
     def add(self, id, credentials):
-        (media, ids) = self._build_media(id, credentials)
+        media = self._build_media(id, credentials)
 
-        self.playlist.extend(ids)
         self.medialist.lock()
         for media_item in media:
             self.medialist.add_media(media_item)
         self.medialist.unlock()
 
     def _build_media(self, id, credentials):
+        def create_mrl(ids, url):
+            for id in ids:
+                mrl = url % id
+                self.mrl_map[mrl] = int(id)
+                yield mrl
+
         if not isinstance(id, list):
             ids = [id]
         else:
             ids = id
         url = 'http://' + self.target + '/rest/stream.view?id=%s&format="raw"&' + str(credentials)
-        media = [self.instance.media_new(url % id) for id in ids]
-        return (media, ids)
+        media = [self.instance.media_new(mrl) for mrl in create_mrl(ids, url)]
+        return media
 
     def get_volume(self):
         player = self.player.get_media_player()
@@ -90,7 +103,7 @@ class Jukebox (object):
     def is_playing(self):
         return self.player.is_playing()
 
-    def play(self, index=-1):
+    def play(self, index=0):
         self.player.play()
         if index >= 0:
             self.player.play_item_at_index(index)
@@ -102,10 +115,19 @@ class Jukebox (object):
         self.player.pause()
 
     def get_index(self):
-        return 89 # The Gereg 
+        if not self.is_playing():
+            return -1
+        player = self.player.get_media_player()
+        mrl = player.get_media().get_mrl()
+        player.release()
+        id = self.mrl_map[mrl] 
+        return id
 
     def get_position(self):
-        return 20
+        player = self.player.get_media_player()
+        time_ms = player.get_time()
+        player.release()
+        return time_ms // 1000
 
 class Credentials(object):
     def __init__(self, dict):

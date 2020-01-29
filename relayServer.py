@@ -103,13 +103,16 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
 
     def handle_jukebox_action(self, credentials, args):
         try:    
+            if 'action' not in args:
+                return
+            
             action = args['action']
             if action == 'get':
                 print(args)
             elif action == 'status':
                 pass # Status is always returned
             elif action == 'set':
-                self.jukebox.set(id=args['id'], credentials=credentials)
+                self.jukebox.set(id=args['id'] if 'id' in args else [], credentials=credentials)
             elif action == 'start':
                 self.jukebox.play()
             elif action == 'stop':

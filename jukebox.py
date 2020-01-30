@@ -100,6 +100,11 @@ class Jukebox (object):
         player.audio_set_volume(int(volume * 100))
         player.release()
 
+    def set_position(self, time):
+        player = self.player.get_media_player()
+        player.set_time(time * 1000)
+        player.release()
+
     def is_playing(self):
         return self.player.is_playing()
 

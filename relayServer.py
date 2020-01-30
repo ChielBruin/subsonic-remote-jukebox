@@ -19,7 +19,11 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
         
     def do_POST(self):
         self._handle_request()
-    
+   
+    def serve_404(self):
+        self.send_response(404)
+        self.end_headers()
+
     def send_jukebox_status(self, type):
         status = self.jukebox.get_status()
         
@@ -33,7 +37,48 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
         self.end_headers()
         
         self.wfile.write(response)
-        
+       
+    def _handle_stream(self):
+        conn = http.client.HTTPConnection(self.target)
+        conn.request('GET', self.path)
+        res = conn.getresponse()                       
+    
+        self.send_response(res.status)
+        self.send_header('content-type', res.getheader('content-type'))
+        self.end_headers()
+    
+        chunk = res.read(1024)
+        while chunk:
+            self.wfile.write(chunk)
+            chunk = res.read(1024)
+        return
+
+    def _parse_args(self, match):
+        args = {}
+        for (key, val) in [
+            re.match(r'([\w\d]+)=([\w\d:\.]+)$', x).group(1,2) 
+            for x in match.group(2).split('&')
+        ]:
+            if key in args:
+                if isinstance(args[key], list):
+                    args[key].append(val)
+                else:
+                    args[key] = [args[key], val]
+            else:
+                args[key] = val
+        return args
+
+    def _handle_relay(self):
+        conn = http.client.HTTPConnection(self.target)
+        conn.request('GET', self.path)
+        res = conn.getresponse()                       
+    
+        self.send_response(res.status)
+        self.send_header('content-type', res.getheader('content-type'))
+        self.end_headers()
+    
+        self.wfile.write(res.read())
+
     def _handle_request(self):
         self.protocol_version = 'HTTP/1.1'
         match = re.match(r'/rest/([\w]+)(?:\.view)?\?([\w\d=&:\.]+)(?:#.*)?$', self.path)
@@ -41,51 +86,19 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
         if match:
             group = match.group(1)
             if group == 'stream':
-                conn = http.client.HTTPConnection(self.target)
-                conn.request('GET', self.path)
-                res = conn.getresponse()                       
-            
-                self.send_response(res.status)
-                self.send_header('content-type', res.getheader('content-type'))
-                self.end_headers()
-            
-                chunk = res.read(1024)
-                while chunk:
-                    self.wfile.write(chunk)
-                    chunk = res.read(1024)
-                return
+                self._handle_stream()
             
             elif group.startswith('jukeboxControl'):
-                args = {}
-                for (key, val) in [
-                        re.match(r'([\w\d]+)=([\w\d:\.]+)$', x).group(1,2) 
-                        for x in match.group(2).split('&')
-                    ]:
-                    if key in args:
-                        if isinstance(args[key], list):
-                            args[key].append(val)
-                        else:
-                            args[key] = [args[key], val]
-                    else:
-                        args[key] = val
-
+                args = self._parse_args(match)
                 credentials = Credentials(args)
-                
-                self.handle_jukebox_action(credentials, args)
-                self.send_jukebox_status()
+            
+                self._handle_jukebox_action(credentials, args)
+                self.send_jukebox_status(args['f'] if 'f' in args else None)
+
             else:            
-                conn = http.client.HTTPConnection(self.target)
-                conn.request('GET', self.path)
-                res = conn.getresponse()                       
-            
-                self.send_response(res.status)
-                self.send_header('content-type', res.getheader('content-type'))
-                self.end_headers()
-            
-                self.wfile.write(res.read())
+                self._handle_relay()
         else:
-            print('else: %s' % self.path)
-            pass
+            self.serve_404()
 
     @classmethod
     def start(cls, port):
@@ -101,47 +114,57 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
             else:
                 raise ex
 
-    def handle_jukebox_action(self, credentials, args):
-        try:    
-            if 'action' not in args:
-                return
-            
-            action = args['action']
-            if action == 'get':
-                print(args)
-            elif action == 'status':
-                pass # Status is always returned
-            elif action == 'set':
-                self.jukebox.set(id=args['id'] if 'id' in args else [], credentials=credentials)
-            elif action == 'start':
-                self.jukebox.play()
-            elif action == 'stop':
-                self.jukebox.pause()
-            elif action == 'skip':
-                self.jukebox.play(int(args['index']))
-            elif action == 'add':
-                self.jukebox.add(id=args['id'], credentials=credentials)
-            elif action == 'clear':
-                print(args)
-            elif action == 'remove':
-                print(args)
-            elif action == 'shuffle':
-                print(args)
-            elif action == 'setGain':
-                self.jukebox.set_volume(float(args['gain']))
-            else:
-                raise Exception('Unknown action')
-        except:
-            print(self.path)
+    def _handle_jukebox_action(self, credentials, args):
+        if 'action' not in args:
+            self.serve_missing_param(args)
+        
+        action = args['action']
+        if action == 'get':
             print(args)
-            # TODO: Send response here
-            traceback.print_exc()
+        elif action == 'status':
+            pass # Status is always returned
+        elif action == 'set':
+            self.jukebox.set(id=args['id'] if 'id' in args else [], credentials=credentials)
+        elif action == 'start':
+            self.jukebox.play()
+        elif action == 'stop':
+            self.jukebox.pause()
+        elif action == 'skip':
+            self.jukebox.play(int(args['index']))
+            if 'offset' in args:
+                self.jukebox.set_position(int(args['offset']))
+        elif action == 'add':
+            self.jukebox.add(id=args['id'], credentials=credentials)
+        elif action == 'clear':
+            print(args)
+        elif action == 'remove':
+            print(args)
+        elif action == 'shuffle':
+            print(args)
+        elif action == 'setGain':
+            self.jukebox.set_volume(float(args['gain']))
+        else:
+            self.serve_missing_param(args)
         
+    def serve_missing_params(self, args):     
+        self.send_response(200)
+        
+        if 'f' not in args or args['f'] == 'xml':
+            self.send_header('content-type', 'application/json; charset=UTF-8')
             response = b'<subsonic-response status="failed" version="1.16.1"> <error code="10" message="Required parameter is missing."/> </subsonic-response>'
-        
-            self.send_response(200)
+        else:
             self.send_header('content-type', 'text/xml')
-            self.end_headers()
+            response = b'''{
+               "subsonic-response" : {
+                     "status" : "failed",
+                     "version" : "1.16.1",
+                     "error" : {
+                         "code" : 10,
+                         "message" : "Required parameter is missing."
+                     }
+                }
+            }'''
+    
+        self.end_headers()
+        self.wfile.write(response)
         
-            self.wfile.write(response)
-            

@@ -50,7 +50,10 @@ class Jukebox (object):
                     self.get_index(), 
                     self.get_volume()
         )
-
+    
+    def get_playlist(self):
+        return list(self.mrl_map.values())
+    
     def set(self, id, credentials):
         self.mrl_map = {}
         media = self._build_media(id, credentials)

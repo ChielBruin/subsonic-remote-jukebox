@@ -4,6 +4,7 @@ import socketserver
 import re
 import time
 import traceback
+import random
 
 from jukebox import Credentials
 
@@ -135,7 +136,10 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
             if 'offset' in args:
                 self.jukebox.set_position(int(args['offset']))
         elif action == 'add':
-            self.jukebox.add(id=args['id'], credentials=credentials)
+            if 'id' in args:
+                self.jukebox.add(id=args['id'], credentials=credentials)
+            else:
+                self.serve_missing_params(args)
         elif action == 'clear':
             self.jukebox.set(id=[], credentials=credentials)
         elif action == 'remove':
@@ -144,9 +148,15 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
             else:
                 self.serve_missing_params(args)
         elif action == 'shuffle':
-            print(args)
+            playlist = self.jukebox.get_playlist()
+            random.shuffle(playlist))
+            self.jukebox.set(playlist, credentials)
+
         elif action == 'setGain':
-            self.jukebox.set_volume(float(args['gain']))
+            if 'gain' in args:
+                self.jukebox.set_volume(float(args['gain']))
+            else:
+                self.serve_missing_params(args)
         else:
             self.serve_missing_param(args)
         

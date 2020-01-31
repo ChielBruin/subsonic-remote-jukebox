@@ -125,6 +125,7 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
             pass # Status is always returned
         elif action == 'set':
             self.jukebox.set(id=args['id'] if 'id' in args else [], credentials=credentials)
+            self.jukebox.play()
         elif action == 'start':
             self.jukebox.play()
         elif action == 'stop':

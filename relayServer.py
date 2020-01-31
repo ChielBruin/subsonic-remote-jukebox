@@ -125,8 +125,11 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
         elif action == 'status':
             pass # Status is always returned
         elif action == 'set':
-            self.jukebox.set(id=args['id'] if 'id' in args else [], credentials=credentials)
-            self.jukebox.play()
+            if 'id' in args:
+                self.jukebox.set(id=args['id'], credentials=credentials)
+                self.jukebox.play()
+            else:
+                self.serve_missing_params(args)
         elif action == 'start':
             self.jukebox.play()
         elif action == 'stop':
@@ -149,7 +152,7 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
                 self.serve_missing_params(args)
         elif action == 'shuffle':
             playlist = self.jukebox.get_playlist()
-            random.shuffle(playlist))
+            random.shuffle(playlist)
             self.jukebox.set(playlist, credentials)
 
         elif action == 'setGain':

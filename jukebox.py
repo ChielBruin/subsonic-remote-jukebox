@@ -73,6 +73,16 @@ class Jukebox (object):
             self.medialist.add_media(media_item)
         self.medialist.unlock()
 
+    def remove(self, index):
+        self.medialist.lock()
+        item = self.medialist.item_at_index(index)
+        if item:
+            mrl = item.get_mrl()
+            del self.mrl_map[mrl]
+            self.medialist.remove_index(index)
+        item.release()
+        self.medialist.unlock()
+
     def _build_media(self, id, credentials):
         def create_mrl(ids, url):
             for id in ids:

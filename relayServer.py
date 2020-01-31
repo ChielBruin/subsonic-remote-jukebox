@@ -137,9 +137,12 @@ class RelayServer (http.server.BaseHTTPRequestHandler):
         elif action == 'add':
             self.jukebox.add(id=args['id'], credentials=credentials)
         elif action == 'clear':
-            print(args)
+            self.jukebox.set(id=[], credentials=credentials)
         elif action == 'remove':
-            print(args)
+            if 'index' in args:
+                self.jukebox.remove(int(args['index']))
+            else:
+                self.serve_missing_params(args)
         elif action == 'shuffle':
             print(args)
         elif action == 'setGain':
